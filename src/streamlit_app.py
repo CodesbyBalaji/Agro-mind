@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import sys
 import os
+from datetime import datetime
 import plotly.express as px
 import plotly.graph_objects as go
 
@@ -244,6 +245,10 @@ def initialize_session_state():
         st.session_state.weather_service = WeatherService()
     if 'current_weather' not in st.session_state:
         st.session_state.current_weather = None
+    if 'farm_history' not in st.session_state:
+        st.session_state.farm_history = []
+    if 'analytics_data' not in st.session_state:
+        st.session_state.analytics_data = pd.DataFrame()
 
 def render_ai_chat():
     st.markdown("### 🤖 Ask AgroMind AI")
@@ -352,7 +357,7 @@ def main():
     with tab4:
         render_advisory_report(farm_size)
     with tab5:
-        render_analytics()
+        render_analytics(farm_id)
 
 def render_skeleton():
     """Renders a skeleton loading UI"""
@@ -479,23 +484,23 @@ def render_recommendations(farm_size):
 
     # HERO AI INTERPRETABILITY SECTION
     st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
-    st.markdown("### 🔥 AI Reasoning & Confidence Visualization")
+    st.markdown("### 🌱 Precision Sustainability Index (PSI) Analysis")
     
     recs = st.session_state.recommendations
     crops = [r['crop'] for r in recs]
-    confidences = [float(r['confidence'].strip('%')) for r in recs]
+    psi_scores = [float(r['psi_percentage']) for r in recs]
     
     fig = go.Figure(go.Bar(
-        x=confidences,
+        x=psi_scores,
         y=crops,
         orientation='h',
-        marker=dict(color=['#FFD700', '#C0C0C0', '#CD7F32', '#8BC34A']),
-        text=[f"{c}%" for c in confidences],
+        marker=dict(color=['#2D6A4F', '#40916C', '#52B788', '#74C69D']),
+        text=[f"{s:.1f}%" for s in psi_scores],
         textposition='auto',
     ))
     fig.update_layout(
-        title="LSTM Model Decision Confidence",
-        xaxis_title="Confidence Probability (%)",
+        title="Predictive Sustainability Index (PSI) by Model",
+        xaxis_title="PSI Percentage (%)",
         yaxis_autorange="reversed",
         height=300,
         margin=dict(l=0, r=0, t=30, b=0),
@@ -508,7 +513,7 @@ def render_recommendations(farm_size):
     st.markdown("</div>", unsafe_allow_html=True)
 
     # Detailed Cards
-    icon_map = {"Rice": "🌾", "Wheat": "🌾", "Maize": "🌽", "Corn": "🌽", "Cotton": "🌱", "Jute": "🌱"}
+    icon_map = {"Aman_Rice": "🌾", "Boro_Rice": "🌾", "Wheat": "🌾", "Maize": "🌽", "Corn": "🌽", "Cotton": "🌱", "Jute": "🌱", "Millets": "🌾", "Pulses": "🫘"}
     
     for i, rec in enumerate(recs):
         st.markdown(f"<div class='crop-card rank-{i+1}'>", unsafe_allow_html=True)
@@ -516,11 +521,12 @@ def render_recommendations(farm_size):
         with c1:
             icon = icon_map.get(rec['crop'], "🌱")
             st.markdown(f'### <span class="animated-icon">{icon}</span> {rec["crop"]}', unsafe_allow_html=True)
-            st.write(f"**Sustainability Index:** {rec['psi_percentage']:.1f}%")
+            st.write(f"**PSI Rating:** {rec['psi_rating']}")
+            st.write(f"**LSTM Confidence:** {rec['confidence']}")
         with c2:
             # Animated Progress Ring using Plotly Pie Donut
             fig_ring = go.Figure(go.Pie(
-                values=[confidences[i], 100-confidences[i]],
+                values=[psi_scores[i], 100-psi_scores[i]],
                 hole=0.7,
                 marker=dict(colors=['#4CAF50', 'rgba(255,255,255,0.1)']),
                 textinfo='none'
@@ -531,7 +537,7 @@ def render_recommendations(farm_size):
                 paper_bgcolor='rgba(0,0,0,0)'
             )
             st.plotly_chart(fig_ring, config={'displayModeBar': False}, use_container_width=False)
-            st.caption(f"Confidence: {rec['confidence']}")
+            st.caption(f"Score: {rec['psi_percentage']}%")
         with c3:
             if st.button(f"Generate Plan", key=f"sel_{i}"):
                 st.session_state.selected_crop = rec
@@ -545,6 +551,16 @@ def render_recommendations(farm_size):
                     }
                     with st.spinner(" "): # Skeleton loader would be better here too but let's keep it simple
                         st.session_state.advisory_report = st.session_state.system.generate_adaptive_advisory(rec, curr, farm_size)
+                        
+                        # Update history for analytics
+                        new_entry = {
+                            'date': datetime.now().strftime("%Y-%m-%d %H:%M"),
+                            'crop': rec['crop'],
+                            'psi': rec['psi_percentage'],
+                            'yield_t_ha': st.session_state.advisory_report['yield_prediction']['predicted_yield_t_ha'],
+                            'farm_size': farm_size
+                        }
+                        st.session_state.farm_history.append(new_entry)
                     st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
@@ -564,7 +580,14 @@ def render_advisory_report(farm_size):
             st.write(fert['application'])
             st.caption(f"Rationale: {fert['deficit_addressed']}")
             
-    st.markdown("### 💧 Smart Irrigation")
+    st.markdown("### � Predicted Yield Breakdown")
+    yp = report['yield_prediction']
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Expected Yield", f"{yp['predicted_yield_t_ha']} t/ha", f"{yp['confidence']}")
+    c2.metric("Soil Readiness", f"{yp['factors']['soil_nutrition']*100:.0f}%")
+    c3.metric("Climate Score", f"{yp['factors']['climate_suitability']*100:.0f}%")
+
+    st.markdown("### �💧 Smart Irrigation")
     irr = report['irrigation_plan']
     col1, col2, col3 = st.columns(3)
     col1.metric("Method", irr['recommended_type'])
@@ -573,29 +596,80 @@ def render_advisory_report(farm_size):
     
     st.markdown("</div>", unsafe_allow_html=True)
 
-def render_analytics():
-    # Reuse previous analytics functionality but inside glass container
+def render_analytics(farm_id):
     st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
     st.markdown("## 📊 Farm Analytics Dashboard")
     
+    if not st.session_state.farm_history:
+        st.info("� Generate recommendations to build analytics history")
+    else:
+        # Update analytics dataframe
+        if st.session_state.analytics_data.empty:
+            st.session_state.analytics_data = pd.DataFrame(st.session_state.farm_history)
+        else:
+            new_df = pd.DataFrame(st.session_state.farm_history)
+            st.session_state.analytics_data = pd.concat([st.session_state.analytics_data, new_df]).drop_duplicates()
+        
+        df_analytics = st.session_state.analytics_data
+        
+        # Metrics row
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Total Predictions", len(df_analytics))
+        with col2:
+            avg_psi = df_analytics['psi'].mean()
+            st.metric("Avg PSI Score", f"{avg_psi:.1f}%")
+        with col3:
+            total_yield = (df_analytics['yield_t_ha'] * df_analytics['farm_size']).sum()
+            st.metric("Total Yield (t)", f"{total_yield:.1f}")
+        with col4:
+            best_crop = df_analytics.loc[df_analytics['psi'].idxmax(), 'crop']
+            st.metric("Best Crop", best_crop)
+        
+        # Charts
+        col1, col2 = st.columns(2)
+        with col1:
+            st.subheader("PSI Scores Over Time")
+            st.line_chart(df_analytics.set_index('date')['psi'], use_container_width=True)
+        
+        with col2:
+            st.subheader("Yield by Crop")
+            yield_pivot = df_analytics.groupby('crop')['yield_t_ha'].mean().sort_values(ascending=False)
+            st.bar_chart(yield_pivot, use_container_width=True)
+        
+        # History table
+        st.markdown("### 📋 Prediction History")
+        st.dataframe(df_analytics[['date', 'crop', 'psi', 'yield_t_ha', 'farm_size']].tail(10), 
+                    use_container_width=True)
+        
+        # Download analytics
+        csv = df_analytics.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📥 Download Analytics CSV",
+            data=csv,
+            file_name=f"{farm_id}_analytics.csv",
+            mime="text/csv",
+            use_container_width=True
+        )
+    
+    st.markdown("</div>", unsafe_allow_html=True)
+
+def render_mock_analytics():
+    """Mock visualization for empty state"""
+    st.caption("Showing demo data (No live history found)")
     years = ['2020', '2021', '2022', '2023', '2024']
     yield_data = [3.2, 3.8, 4.1, 3.9, 4.5]
     profit_data = [12000, 15000, 18500, 16000, 22000]
     
     col1, col2 = st.columns(2)
     with col1:
-        st.markdown("### 📈 Historical Yield")
-        fig = px.line(x=years, y=yield_data, markers=True)
-        fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+        fig = px.line(x=years, y=yield_data, markers=True, title="Historical Trend")
+        fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(color='#fff'))
         st.plotly_chart(fig, use_container_width=True)
-        
     with col2:
-        st.markdown("### 💰 Profit Projection")
-        fig2 = px.area(x=years, y=profit_data)
-        fig2.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+        fig2 = px.area(x=years, y=profit_data, title="Revenue Potential")
+        fig2.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(color='#fff'))
         st.plotly_chart(fig2, use_container_width=True)
-        
-    st.markdown("</div>", unsafe_allow_html=True)
     
     # Footer
     st.markdown("---")

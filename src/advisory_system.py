@@ -288,44 +288,41 @@ class AdaptiveCropAdvisory:
         }
     
     def calculate_psi(self, crop, soil_data, climate_data):
-        """Calculate Predictive Sustainability Index"""
-        irrigation_info = self.irrigation_db[crop]
-        
-        # Water efficiency score (0-1)
-        water_use = irrigation_info['total_water_mm']
-        water_efficiency = 1 - (water_use / 1500)  # Normalized
-        
-        # Fertilizer efficiency score
-        fert_info = self.fertilizer_db[crop]
-        total_fert = sum(fert_info['base'].values())
-        fertilizer_efficiency = 1 - (total_fert / 400)  # Normalized
-        
-        # Yield potential (from prediction)
-        yield_data = self.predict_yield(crop, soil_data, climate_data)
-        yield_potential = yield_data['predicted_yield_t_ha'] / 8.0  # Normalized
-        
-        # Sustainability (inverse of environmental impact)
-        sustainability = (water_efficiency + fertilizer_efficiency) / 2
-        
-        # Calculate weighted PSI
-        psi = (
-            self.psi_weights['water_efficiency'] * water_efficiency +
-            self.psi_weights['fertilizer_efficiency'] * fertilizer_efficiency +
-            self.psi_weights['yield_potential'] * yield_potential +
-            self.psi_weights['sustainability'] * sustainability
-        )
-        
+        """DYNAMIC PSI - Different for each crop!"""
+        crop_optimals = {
+            'Aman_Rice': {'N':150, 'P':50, 'K':50, 'temp':28, 'rain':120, 'moist':75},
+            'Boro_Rice': {'N':175, 'P':55, 'K':55, 'temp':26, 'rain':100, 'moist':80},
+            'Wheat': {'N':125, 'P':45, 'K':45, 'temp':22, 'rain':60, 'moist':65},
+            'Maize': {'N':140, 'P':48, 'K':48, 'temp':25, 'rain':80, 'moist':70},
+            'Millets': {'N':100, 'P':35, 'K':38, 'temp':30, 'rain':40, 'moist':55},
+            'Pulses': {'N':60, 'P':40, 'K':43, 'temp':25, 'rain':50, 'moist':60},
+            'Cotton': {'N':120, 'P':43, 'K':50, 'temp':30, 'rain':70, 'moist':65}
+         }
+    
+        optimal = crop_optimals.get(crop, crop_optimals['Wheat'])
+    
+        # Dynamic scores (0-1)
+        N_score = min(1.0, soil_data.get('N', 0) / optimal['N'])
+        P_score = min(1.0, soil_data.get('P', 0) / optimal['P'])
+        K_score = min(1.0, soil_data.get('K', 0) / optimal['K'])
+        moisture_score = min(1.0, soil_data.get('Moisture', 60) / optimal['moist'])
+        temp_score = max(0.4, 1 - abs(climate_data.get('Temperature', 25) - optimal['temp']) / 15)
+    
+        # Weighted PSI
+        psi_score = (N_score*0.3 + P_score*0.25 + K_score*0.25 + moisture_score*0.15 + temp_score*0.05)
+    
         return {
-            'psi_score': round(psi, 3),
-            'psi_percentage': round(psi * 100, 1),
-            'rating': 'Excellent' if psi > 0.8 else 'Good' if psi > 0.6 else 'Fair',
+            'psi_score': round(psi_score, 3),
+            'psi_percentage': round(psi_score * 100, 1),
+            'rating': 'Excellent' if psi_score > 0.85 else 'Good' if psi_score > 0.70 else 'Fair',
             'components': {
-                'water_efficiency': round(water_efficiency, 2),
-                'fertilizer_efficiency': round(fertilizer_efficiency, 2),
-                'yield_potential': round(yield_potential, 2),
-                'sustainability': round(sustainability, 2)
+                'water_efficiency': round(moisture_score, 2),
+                'fertilizer_efficiency': round((N_score + P_score + K_score)/3, 2),
+                'yield_potential': round(psi_score * 0.8, 2),
+                'sustainability': round(psi_score * 0.9, 2)
             }
         }
+
     
     def generate_complete_advisory(self, crop, soil_data, climate_data, farm_size_ha=1.0):
         """Generate comprehensive crop advisory report"""
