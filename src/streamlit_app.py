@@ -289,8 +289,9 @@ def main():
     
     # Sidebar
     with st.sidebar:
-        st.image("https://img.icons8.com/plasticine/400/farm.png", 
-                use_container_width=True)
+        # Updated to premium AgTech brand logo
+        logo_path = os.path.join(os.path.dirname(__file__), 'assets', 'brand_logo.png')
+        st.image(logo_path, use_container_width=True)
         
         st.markdown("### 🌓 UI Settings")
         dark_mode = st.toggle("🌙 Dark Mode", value=True)
