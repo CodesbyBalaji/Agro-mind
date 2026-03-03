@@ -517,27 +517,36 @@ def render_recommendations(farm_size):
     
     for i, rec in enumerate(recs):
         st.markdown(f"<div class='crop-card rank-{i+1}'>", unsafe_allow_html=True)
-        c1, c2, c3 = st.columns([2, 2, 1])
+        c1, c2, c3 = st.columns([2, 1.5, 1.5])
         with c1:
             icon = icon_map.get(rec['crop'], "🌱")
             st.markdown(f'### <span class="animated-icon">{icon}</span> {rec["crop"]}', unsafe_allow_html=True)
             st.write(f"**PSI Rating:** {rec['psi_rating']}")
             st.write(f"**LSTM Confidence:** {rec['confidence']}")
         with c2:
-            # Animated Progress Ring using Plotly Pie Donut
+            # Shifted Left & Anti-Clipping Container
+            st.markdown("""
+            <div style='display: flex; flex-direction: column; align-items: center; justify-content: center; margin-left: -40px; width: 120px;'>
+            """, unsafe_allow_html=True)
             fig_ring = go.Figure(go.Pie(
                 values=[psi_scores[i], 100-psi_scores[i]],
-                hole=0.7,
-                marker=dict(colors=['#4CAF50', 'rgba(255,255,255,0.1)']),
-                textinfo='none'
+                hole=0.8,
+                marker=dict(colors=['#4CAF50', 'rgba(128, 128, 128, 0.15)']),
+                textinfo='none',
+                sort=False,
+                direction='clockwise',
+                rotation=90
             ))
             fig_ring.update_layout(
                 showlegend=False, height=100, width=100,
-                margin=dict(l=0, r=0, t=0, b=0),
-                paper_bgcolor='rgba(0,0,0,0)'
+                margin=dict(l=5, r=5, t=5, b=5),
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                autosize=False
             )
             st.plotly_chart(fig_ring, config={'displayModeBar': False}, use_container_width=False)
-            st.caption(f"Score: {rec['psi_percentage']}%")
+            st.markdown(f"<p style='font-size:11px; margin-top:-20px; color:#aaa; font-weight:bold;'>PSI: {rec['psi_percentage']}%</p>", unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
         with c3:
             if st.button(f"Generate Plan", key=f"sel_{i}"):
                 st.session_state.selected_crop = rec
