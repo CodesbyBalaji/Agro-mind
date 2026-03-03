@@ -249,13 +249,21 @@ def render_ai_chat():
     st.markdown("### 🤖 Ask AgroMind AI")
     
     # Prebuilt questions buttons
-    cols = st.columns(2)
-    if cols[0].button("Rice vs Wheat?", use_container_width=True):
+    cols_a = st.columns(2)
+    cols_b = st.columns(2)
+    
+    if cols_a[0].button("Rice vs Wheat?", use_container_width=True):
         st.session_state.messages.append({"role": "user", "content": "Why is rice better than wheat?"})
         st.session_state.messages.append({"role": "assistant", "content": "Rice thrives in high moisture and clay-rich soil. Given the current agriculture indices, Rice is more suitable for water-heavy segments, leading to higher PSI scores in your analysis."})
-    if cols[1].button("Yield Boost?", use_container_width=True):
+    if cols_a[1].button("Yield Boost?", use_container_width=True):
         st.session_state.messages.append({"role": "user", "content": "How can I increase my yield?"})
         st.session_state.messages.append({"role": "assistant", "content": "To increase yield: 1. Optimize NPK based on the Advisory Report. 2. Monitor soil moisture during critical stages. 3. Consider crop rotation with legumes next season."})
+    if cols_b[0].button("Soil Health?", use_container_width=True):
+        st.session_state.messages.append({"role": "user", "content": "How to improve soil health?"})
+        st.session_state.messages.append({"role": "assistant", "content": "To improve soil health: 1. Use organic mulch to retain moisture. 2. Periodic soil testing for pH balance. 3. Avoid excessive tillage to maintain soil structure."})
+    if cols_b[1].button("Pest Control?", use_container_width=True):
+        st.session_state.messages.append({"role": "user", "content": "Sustainable pest control?"})
+        st.session_state.messages.append({"role": "assistant", "content": "For sustainable pest control, try Integrated Pest Management (IPM): 1. Introduce natural predators. 2. Use pheromone traps. 3. Limit chemical pesticides to target-specific areas only."})
 
     # Chat history
     chat_container = st.container(height=300)
@@ -272,11 +280,21 @@ def render_ai_chat():
                 st.write(prompt)
         
         # Simple Logic Response
+        p_lower = prompt.lower()
         response = "Analyzing your farm data... I recommend checking your moisture levels as they seem to have the highest contribution to your current recommendations."
-        if "rice" in prompt.lower():
+        
+        if "rice" in p_lower:
             response = "Rice is currently prioritized because your rainfall data supports anaerobic soil conditions."
-        elif "yield" in prompt.lower():
+        elif "yield" in p_lower:
             response = "For yield growth, focusing on precise Potassium application during Week 4 is critical for your current crop selection."
+        elif "soil" in p_lower:
+            response = "Your current soil pH is within optimal range, but increasing organic matter via composting could further stabilize the N-cycle."
+        elif "pest" in p_lower:
+            response = "Based on current humidity, be on the lookout for fungal infections. Early preventive neem oil spray is recommended."
+        elif "weather" in p_lower or "rain" in p_lower:
+            response = "The Weather Oracle shows a stable rain pattern for the next 72 hours, which is perfect for your planned sowing schedule."
+        elif "market" in p_lower or "price" in p_lower:
+            response = "Current trends show a 15% increase in demand for high-PSI sustainable crops like the ones recommended in your report."
             
         st.session_state.messages.append({"role": "assistant", "content": response})
         with chat_container:
