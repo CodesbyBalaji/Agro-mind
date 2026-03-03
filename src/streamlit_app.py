@@ -15,6 +15,7 @@ import plotly.graph_objects as go
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from integrated_system import AgroMindIntegratedSystem
+from weather_service import WeatherService
 
 # Page configuration
 st.set_page_config(
@@ -66,6 +67,22 @@ def apply_custom_css(dark_mode):
             0% {{ transform: rotate(-10deg); }}
             50% {{ transform: rotate(10deg); }}
             100% {{ transform: rotate(-10deg); }}
+        }}
+        @keyframes cloudFloat {{
+            0% {{ transform: translateX(-10px); }}
+            50% {{ transform: translateX(10px); }}
+            100% {{ transform: translateX(-10px); }}
+        }}
+        .weather-card {{
+            background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
+            border-radius: 20px;
+            padding: 20px;
+            border: 1px solid rgba(255,255,255,0.1);
+            animation: fadeInSlide 1s ease-out;
+        }}
+        .cloud-icon {{
+            animation: cloudFloat 4s infinite ease-in-out;
+            display: inline-block;
         }}
         
         .skeleton {{
@@ -170,6 +187,31 @@ def apply_custom_css(dark_mode):
         .nav-item:hover {{
             background: rgba(76, 175, 80, 0.1);
         }}
+        
+        /* Horizontal Navbar Styling */
+        .stTabs [data-baseweb="tab-list"] {{
+            gap: 20px;
+            background-color: transparent;
+            justify-content: center;
+            border-bottom: 2px solid rgba(255,255,255,0.1);
+            margin-bottom: 2rem;
+        }}
+        .stTabs [data-baseweb="tab"] {{
+            height: 50px;
+            background-color: {card_bg};
+            backdrop-filter: blur(10px);
+            border-radius: 10px 10px 0 0;
+            color: {text_color};
+            font-weight: 600;
+            padding: 0 20px;
+            transition: all 0.3s;
+            border: 1px solid {border_color};
+        }}
+        .stTabs [aria-selected="true"] {{
+            background: linear-gradient(135deg, #1b4332, #2d6a4f) !important;
+            color: white !important;
+            border-bottom: 4px solid #4CAF50 !important;
+        }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -185,6 +227,10 @@ def initialize_session_state():
         st.session_state.advisory_report = None
     if 'messages' not in st.session_state:
         st.session_state.messages = [{"role": "assistant", "content": "How can I help you with your farm today?"}]
+    if 'weather_service' not in st.session_state:
+        st.session_state.weather_service = WeatherService()
+    if 'current_weather' not in st.session_state:
+        st.session_state.current_weather = None
 
 def render_ai_chat():
     st.markdown("### 🤖 Ask AgroMind AI")
@@ -238,11 +284,6 @@ def main():
         apply_custom_css(dark_mode)
         
         st.markdown("---")
-        st.markdown("## 🧭 Navigation")
-        nav_selection = st.radio("", ["📊 Data Input", "🌾 Crop Recommendations", 
-                                       "💡 Advisory Report", "📈 Analytics"])
-        
-        st.markdown("---")
         st.markdown("## 📍 Farm Details")
         farm_id = st.text_input("Farm ID", value="FARM_001")
         farm_size = st.number_input("Farm Size (hectares)", min_value=0.1, 
@@ -266,14 +307,19 @@ def main():
     st.markdown('<div class="main-header">🌾 AgroMind+ | AI Smart Crop Advisory</div>', 
                 unsafe_allow_html=True)
     
-    # Logic for navigation
-    if nav_selection == "📊 Data Input":
+    # Horizontal Navigation using Tabs
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊 Data Input", "Weather Oracle", "🌾 Crop Recommendations", 
+                                       "💡 Advisory Report", "📈 Analytics"])
+    
+    with tab1:
         render_data_input()
-    elif nav_selection == "🌾 Crop Recommendations":
+    with tab2:
+        render_weather_oracle()
+    with tab3:
         render_recommendations(farm_size)
-    elif nav_selection == "💡 Advisory Report":
+    with tab4:
         render_advisory_report(farm_size)
-    elif nav_selection == "📈 Analytics":
+    with tab5:
         render_analytics()
 
 def render_skeleton():
@@ -283,6 +329,64 @@ def render_skeleton():
         st.markdown('<div class="skeleton" style="width: 100%"></div>', unsafe_allow_html=True)
         st.markdown('<div class="skeleton" style="width: 60%"></div>', unsafe_allow_html=True)
         st.markdown('<br>', unsafe_allow_html=True)
+
+def render_weather_oracle():
+    st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
+    st.markdown("## <span class='cloud-icon'>🌦️</span> Live Weather Oracle", unsafe_allow_html=True)
+    st.markdown("Hyper-local satellite data from IMD, OpenWeather & NASA POWER")
+    
+    c_lat, c_lon, c_btn = st.columns([2, 2, 2])
+    lat = c_lat.number_input("Target Latitude", value=22.3, format="%.4f")
+    lon = c_lon.number_input("Target Longitude", value=87.3, format="%.4f")
+    
+    if c_btn.button("📡 Sync Satellite Data", use_container_width=True, type="primary"):
+        with st.spinner("Connecting to Global Weather Mesh..."):
+            st.session_state.current_weather = st.session_state.weather_service.fetch_weather_data(lat, lon)
+    
+    if st.session_state.current_weather:
+        w = st.session_state.current_weather
+        
+        # Alerts Hero Section
+        st.markdown("### ⚠️ Atmospheric Alerts")
+        cols_alert = st.columns(len(w['alerts']) if w['alerts'] else 1)
+        for i, alert in enumerate(w['alerts']):
+            with cols_alert[i % len(cols_alert)]:
+                if "Alert" in alert or "Warning" in alert:
+                    st.error(alert)
+                else:
+                    st.success(alert)
+
+        # Main metrics
+        st.markdown("---")
+        df_weather = pd.DataFrame(w['forecast'])
+
+        c1, c2, c3 = st.columns(3)
+        latest = w['forecast'][0]
+        c1.metric("Current Temp", f"{latest['temp']}°C", "0.5°C")
+        c2.metric("Humidity", f"{latest['humidity']}%", "2%")
+        c3.metric("Rain Prob", f"{latest['rain_prob']}%")
+
+        # Visualizations
+        st.markdown("### 📅 7-Day Precision Forecast")
+        
+        fig_weather = go.Figure()
+        fig_weather.add_trace(go.Bar(x=df_weather['date'], y=df_weather['rain_prob'], name='Rain Prob %', marker_color='#4CAF50'))
+        fig_weather.add_trace(go.Scatter(x=df_weather['date'], y=df_weather['temp'], name='Temp °C', yaxis='y2', line=dict(color='#FF5722', width=4)))
+        
+        fig_weather.update_layout(
+            yaxis=dict(title='Rain Probability (%)', side='left'),
+            yaxis2=dict(title='Temperature (°C)', side='right', overlaying='y', showgrid=False),
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+        )
+        st.plotly_chart(fig_weather, use_container_width=True)
+        
+        st.markdown("<div class='weather-card'>", unsafe_allow_html=True)
+        st.dataframe(df_weather, use_container_width=True, hide_index=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+        
+    st.markdown("</div>", unsafe_allow_html=True)
 
 def render_data_input():
     st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
