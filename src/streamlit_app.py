@@ -163,6 +163,19 @@ def apply_custom_css(dark_mode):
                 width: 100% !important;
                 flex: 1 1 100% !important;
             }}
+            /* Mobile Navbar Fix */
+            .stTabs [data-baseweb="tab-list"] {{
+                gap: 10px !important;
+                justify-content: flex-start !important;
+                overflow-x: auto !important;
+                flex-wrap: nowrap !important;
+                padding-bottom: 10px !important;
+            }}
+            .stTabs [data-baseweb="tab"] {{
+                padding: 0 15px !important;
+                min-width: 120px !important;
+                font-size: 13px !important;
+            }}
         }}
 
         .stMetric {{
