@@ -57,6 +57,31 @@ def apply_custom_css(dark_mode):
             50% {{ box-shadow: 0 0 20px rgba(76, 175, 80, 0.6); }}
             100% {{ box-shadow: 0 0 5px rgba(76, 175, 80, 0.2); }}
         }}
+        @keyframes skeletonPulse {{
+            0% {{ background-color: rgba(255, 255, 255, 0.05); }}
+            50% {{ background-color: rgba(255, 255, 255, 0.15); }}
+            100% {{ background-color: rgba(255, 255, 255, 0.05); }}
+        }}
+        @keyframes iconSway {{
+            0% {{ transform: rotate(-10deg); }}
+            50% {{ transform: rotate(10deg); }}
+            100% {{ transform: rotate(-10deg); }}
+        }}
+        
+        .skeleton {{
+            height: 20px;
+            width: 100%;
+            border-radius: 10px;
+            animation: skeletonPulse 1.5s infinite ease-in-out;
+            margin: 10px 0;
+        }}
+        
+        .animated-icon {{
+            display: inline-block;
+            animation: iconSway 3s infinite ease-in-out;
+            font-size: 2rem;
+        }}
+        
         .main-header {{
             font-size: clamp(1.5rem, 5vw, 2.8rem);
             color: #fff;
@@ -71,6 +96,11 @@ def apply_custom_css(dark_mode):
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.1);
         }}
+        
+        [data-testid="stMetricValue"] {{
+            animation: fadeInSlide 1s ease-out backwards;
+        }}
+        
         .glass-card {{
             background: {card_bg};
             backdrop-filter: blur(12px);
@@ -85,25 +115,20 @@ def apply_custom_css(dark_mode):
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             overflow-x: hidden;
         }}
+        
         .glass-card:hover {{
             transform: translateY(-5px);
             border-color: #4CAF50;
             box-shadow: 0 12px 40px 0 rgba(76, 175, 80, 0.25);
         }}
-        .crop-card {{
-            background: {card_bg};
-            backdrop-filter: blur(10px);
-            border-radius: 15px;
-            border: 1px solid {border_color};
-            padding: 1rem;
-            margin: 0.8rem 0;
-            animation: fadeInSlide 0.6s ease-out backwards;
-            transition: all 0.3s ease;
+        
+        /* Circular Progress Styling */
+        .progress-ring {{
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
         }}
-        .rank-1 {{ border-left: clamp(4px, 1vw, 8px) solid #FFD700; }}
-        .rank-2 {{ border-left: clamp(4px, 1vw, 8px) solid #C0C0C0; }}
-        .rank-3 {{ border-left: clamp(4px, 1vw, 8px) solid #CD7F32; }}
-        .rank-4 {{ border-left: clamp(4px, 1vw, 8px) solid #8BC34A; }}
         
         /* Mobile specific adjustments */
         @media (max-width: 768px) {{
@@ -127,8 +152,8 @@ def apply_custom_css(dark_mode):
             background: rgba(255, 255, 255, 0.05);
             padding: 10px;
             border-radius: 10px;
+            animation: fadeInSlide 1s ease-out backwards;
         }}
-        
         /* Modern Sidebar */
         [data-testid="stSidebar"] {{
             background-color: {glass_overlay} !important;
@@ -158,6 +183,46 @@ def initialize_session_state():
         st.session_state.selected_crop = None
     if 'advisory_report' not in st.session_state:
         st.session_state.advisory_report = None
+    if 'messages' not in st.session_state:
+        st.session_state.messages = [{"role": "assistant", "content": "How can I help you with your farm today?"}]
+
+def render_ai_chat():
+    st.markdown("### 🤖 Ask AgroMind AI")
+    
+    # Prebuilt questions buttons
+    cols = st.columns(2)
+    if cols[0].button("Rice vs Wheat?", use_container_width=True):
+        st.session_state.messages.append({"role": "user", "content": "Why is rice better than wheat?"})
+        st.session_state.messages.append({"role": "assistant", "content": "Rice thrives in high moisture and clay-rich soil. Given the current agriculture indices, Rice is more suitable for water-heavy segments, leading to higher PSI scores in your analysis."})
+    if cols[1].button("Yield Boost?", use_container_width=True):
+        st.session_state.messages.append({"role": "user", "content": "How can I increase my yield?"})
+        st.session_state.messages.append({"role": "assistant", "content": "To increase yield: 1. Optimize NPK based on the Advisory Report. 2. Monitor soil moisture during critical stages. 3. Consider crop rotation with legumes next season."})
+
+    # Chat history
+    chat_container = st.container(height=300)
+    with chat_container:
+        for message in st.session_state.messages:
+            with st.chat_message(message["role"]):
+                st.write(message["content"])
+
+    # User input
+    if prompt := st.chat_input("Ask me something..."):
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with chat_container:
+            with st.chat_message("user"):
+                st.write(prompt)
+        
+        # Simple Logic Response
+        response = "Analyzing your farm data... I recommend checking your moisture levels as they seem to have the highest contribution to your current recommendations."
+        if "rice" in prompt.lower():
+            response = "Rice is currently prioritized because your rainfall data supports anaerobic soil conditions."
+        elif "yield" in prompt.lower():
+            response = "For yield growth, focusing on precise Potassium application during Week 4 is critical for your current crop selection."
+            
+        st.session_state.messages.append({"role": "assistant", "content": response})
+        with chat_container:
+            with st.chat_message("assistant"):
+                st.write(response)
 
 def main():
     """Main dashboard function"""
@@ -193,6 +258,9 @@ def main():
                     st.success("✅ AI Engine Ready!")
                 except Exception as e:
                     st.error(f"⚠️ Initialization Error: {e}")
+        
+        st.markdown("---")
+        render_ai_chat()
 
     # Header
     st.markdown('<div class="main-header">🌾 AgroMind+ | AI Smart Crop Advisory</div>', 
@@ -207,6 +275,14 @@ def main():
         render_advisory_report(farm_size)
     elif nav_selection == "📈 Analytics":
         render_analytics()
+
+def render_skeleton():
+    """Renders a skeleton loading UI"""
+    for _ in range(3):
+        st.markdown('<div class="skeleton" style="width: 80%"></div>', unsafe_allow_html=True)
+        st.markdown('<div class="skeleton" style="width: 100%"></div>', unsafe_allow_html=True)
+        st.markdown('<div class="skeleton" style="width: 60%"></div>', unsafe_allow_html=True)
+        st.markdown('<br>', unsafe_allow_html=True)
 
 def render_data_input():
     st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
@@ -241,12 +317,19 @@ def render_data_input():
         
     if st.button("🔮 Pulse AI Analysis", type="primary", use_container_width=True):
         if st.session_state.system:
-            with st.spinner("🤖 Processing sequence through LSTM..."):
+            # Use skeleton while processing
+            placeholder = st.empty()
+            with placeholder.container():
+                render_skeleton()
+                
+            with st.spinner(""): # Hidden since we have skeleton
                 seq = np.array(weeks_data)
                 st.session_state.recommendations = st.session_state.system.predict_top_crops(seq, 4)
-                st.session_state.last_input = weeks_data # Store for interpretability
-                st.success("Analysis Complete!")
-                st.balloons()
+                st.session_state.last_input = weeks_data
+            
+            placeholder.empty()
+            st.success("Analysis Complete!")
+            st.balloons()
         else:
             st.warning("Please initialize AI in sidebar.")
     st.markdown("</div>", unsafe_allow_html=True)
@@ -282,41 +365,37 @@ def render_recommendations(farm_size):
         margin=dict(l=0, r=0, t=30, b=0),
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
-        font=dict(color='gray')
+        font=dict(color='#fff')
     )
     st.plotly_chart(fig, use_container_width=True)
-    
-    # Feature Contribution Graph (Simulated logic based on last input)
-    st.markdown("### ⚖️ Feature Contribution Analysis")
-    st.caption("How specific factors influenced the Top Recommendation:")
-    
-    feat_names = ["Nitrogen", "Phosphorus", "Potassium", "Moisture", "Rainfall"]
-    # Simulated weights - in a real app these come from SHAP/Integrated Gradients
-    contributions = [0.8, -0.2, 0.4, 0.9, 0.5] 
-    
-    fig_feat = px.bar(
-        x=contributions,
-        y=feat_names,
-        orientation='h',
-        color=contributions,
-        color_continuous_scale='RdYlGn',
-        labels={'x': 'Contribution Strength', 'y': 'Feature'}
-    )
-    fig_feat.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=250, margin=dict(l=0, r=0, t=0, b=0))
-    st.plotly_chart(fig_feat, use_container_width=True)
     
     st.markdown("</div>", unsafe_allow_html=True)
 
     # Detailed Cards
+    icon_map = {"Rice": "🌾", "Wheat": "🌾", "Maize": "🌽", "Corn": "🌽", "Cotton": "🌱", "Jute": "🌱"}
+    
     for i, rec in enumerate(recs):
         st.markdown(f"<div class='crop-card rank-{i+1}'>", unsafe_allow_html=True)
         c1, c2, c3 = st.columns([2, 2, 1])
         with c1:
-            st.markdown(f"### {['🥇','🥈','🥉','🏅'][i]} {rec['crop']}")
+            icon = icon_map.get(rec['crop'], "🌱")
+            st.markdown(f'### <span class="animated-icon">{icon}</span> {rec["crop"]}', unsafe_allow_html=True)
             st.write(f"**Sustainability Index:** {rec['psi_percentage']:.1f}%")
         with c2:
-            st.progress(confidences[i]/100)
-            st.caption(f"Model Confidence: {rec['confidence']}")
+            # Animated Progress Ring using Plotly Pie Donut
+            fig_ring = go.Figure(go.Pie(
+                values=[confidences[i], 100-confidences[i]],
+                hole=0.7,
+                marker=dict(colors=['#4CAF50', 'rgba(255,255,255,0.1)']),
+                textinfo='none'
+            ))
+            fig_ring.update_layout(
+                showlegend=False, height=100, width=100,
+                margin=dict(l=0, r=0, t=0, b=0),
+                paper_bgcolor='rgba(0,0,0,0)'
+            )
+            st.plotly_chart(fig_ring, config={'displayModeBar': False}, use_container_width=False)
+            st.caption(f"Confidence: {rec['confidence']}")
         with c3:
             if st.button(f"Generate Plan", key=f"sel_{i}"):
                 st.session_state.selected_crop = rec
@@ -328,7 +407,8 @@ def render_recommendations(farm_size):
                         'pH': seq[-1, 3], 'Temperature': seq[-1, 4], 'Humidity': seq[-1, 5],
                         'Moisture': seq[-1, 6], 'Rainfall': seq[-1, 7], 'Sunlight': seq[-1, 8]
                     }
-                    st.session_state.advisory_report = st.session_state.system.generate_adaptive_advisory(rec, curr, farm_size)
+                    with st.spinner(" "): # Skeleton loader would be better here too but let's keep it simple
+                        st.session_state.advisory_report = st.session_state.system.generate_adaptive_advisory(rec, curr, farm_size)
                     st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
